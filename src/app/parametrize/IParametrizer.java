@@ -1,6 +1,10 @@
 package app.parametrize;
 
+import app.Document;
+
 public interface IParametrizer
 {
-    void parametrize();
+    double[] parametrize(Document d);
+
+    void initialize();
 }
