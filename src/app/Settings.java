@@ -22,4 +22,7 @@ public class Settings
 
     /** CL argument defining the classifier */
     public static String classifierArgument;
+
+    /** Application mode - CREATE or RUN */
+    public static Mode mode;
 }

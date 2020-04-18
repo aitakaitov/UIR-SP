@@ -4,18 +4,15 @@ import app.Settings;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+class BagOfWordsTFIDFTest {
 
-class BagOfWordsTest {
-
-    BagOfWords bow;
-
+    BagOfWordsTFIDF bow;
 
     @BeforeEach
     void setUp()
     {
-        bow = new BagOfWords();
-        Settings.trainingSetPath = "testdata";
+        bow = new BagOfWordsTFIDF();
+        Settings.trainingSetPath = "data/Train";
     }
 
     @Test

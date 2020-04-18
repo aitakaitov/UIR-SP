@@ -1,37 +1,21 @@
 package app.parametrize;
 
 import app.Document;
+import app.LibraryMethods;
 import app.Logger;
 import app.Settings;
-
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Implements the Bag of Words algorithm with TF-IDF
  * @author Vojtěch Bartička
  * @version 1.0
  */
-public class BagOfWords implements IParametrizer
+public class BagOfWordsTF implements IParametrizer
 {
-    /** Regex used to split documents into words */
-    private final String REGEX_SPLIT = "[^\\p{L}0-9]+";
-
-    /** Number of documents - necessary for IDF */
-    private int documentCount = 0;
-
-    /** IDF values for words */
-    private double[] idf;
-
     /** Words from the training set sorted */
     private String[] words;
-
-    /** Word document occurrences */
-    private int[] counts;
 
     /**
      * Returns vector representing the document
@@ -54,19 +38,17 @@ public class BagOfWords implements IParametrizer
                 wordCounts.put(word, 1);
             }
             else
-                {
-                    wordCounts.put(word, wordCounts.get(word) + 1);
-                }
+            {
+                wordCounts.put(word, wordCounts.get(word) + 1);
+            }
         }
 
-        // Calculate TF-IDF
         for (Map.Entry<String, Integer> e : wordCounts.entrySet())
         {
             int index = Arrays.binarySearch(words, e.getKey());
-
             if (index >= 0)
             {
-                vector[index] = (e.getValue() / documentWordCounts) * idf[index];
+                vector[index] = e.getValue();
             }
         }
 
@@ -94,8 +76,10 @@ public class BagOfWords implements IParametrizer
                 System.exit(1);
             }
 
+            Logger.info("Processing file " + trainFile.getName());
+
             // Parse the file
-            Document d = parseDocument(trainFile);
+            Document d = LibraryMethods.parseDocument(trainFile);
 
             Set<String> documentOccurences = new HashSet<>();
 
@@ -113,105 +97,64 @@ public class BagOfWords implements IParametrizer
                     wordsDictionary.put(word, 1);
                 }
                 else
-                    {
-                        wordsDictionary.put(word, wordsDictionary.get(word) + 1);
-                    }
+                {
+                    wordsDictionary.put(word, wordsDictionary.get(word) + 1);
+                }
             }
         }
 
-        disassembleHashMap(wordsDictionary);
-        calculateIDF();
+        wordsDictionary = cleanDictionary(wordsDictionary);
+        disassembleTreeMap(wordsDictionary);
     }
 
     /**
-     * Calculates IDF
+     * Cleans the dictionary from low-occurence strings and number strings
+     * @param map
      */
-    private void calculateIDF()
+    private TreeMap<String, Integer> cleanDictionary(TreeMap<String, Integer> map)
     {
-        Logger.info("Calculating IDF values");
+        TreeMap<String, Integer> newMap = new TreeMap<>();
 
-        idf = new double[counts.length];
-
-        for (int i = 0; i < words.length; i++)
+        for (Map.Entry<String, Integer> e : map.entrySet())
         {
-            idf[i] = 1 + Math.log(documentCount / counts[i]);
+            if (e.getValue() <= 2)
+            {
+                continue;
+            }
+
+            try
+            {
+                Integer.parseInt(e.getKey());
+            }
+            catch (NumberFormatException exc)
+            {
+                newMap.put(e.getKey(), e.getValue());
+            }
         }
+
+        return newMap;
     }
 
     /**
      * Disassembles HashMap dictionary and saves it into counts[] and words[]
      * @param map
      */
-    private void disassembleHashMap(TreeMap<String, Integer> map)
+    private void disassembleTreeMap(TreeMap<String, Integer> map)
     {
         Logger.info("Creating bag of words dictionary");
-
-
         ArrayList<String> ws = new ArrayList<>();
-        ArrayList<Integer> cs = new ArrayList<>();
 
         map.forEach((k, v) ->
         {
             ws.add(k);
-            cs.add(v);
         });
 
         words = new String[ws.size()];
-        counts = new int[cs.size()];
         ws.toArray(words);
-
-        for (int i = 0; i < counts.length; i++)
-        {
-            counts[i] = cs.get(i).intValue();
-        }
     }
 
-
-    /**
-     * Parses document
-     * @param docFile text file with document
-     * @return parse document
-     */
-    private Document parseDocument(File docFile)
+    public int getVectorLength()
     {
-        Document d = null;
-
-        try
-        {
-            BufferedReader br = new BufferedReader(new FileReader(docFile));
-
-            String classes = br.readLine();
-            br.readLine();
-            String text = br.readLine();
-
-            d = new Document();
-            d.documentWords = splitText(text);
-            d.classes = splitText(classes);
-        }
-        catch (IOException e)
-        {
-            Logger.error("Error parsing file " + docFile.getName() + ", program will exit.");
-            System.exit(1);
-        }
-
-        documentCount++;
-        return d;
-    }
-
-    /**
-     * Splits document text into words and converts them into lowercase
-     * @param text
-     * @return lowercase words
-     */
-    private String[] splitText(String text)
-    {
-        String[] words = text.split(REGEX_SPLIT);
-
-        for (int i = 0; i < words.length; i++)
-        {
-            words[i] = words[i].toLowerCase();
-        }
-
-        return words;
+        return this.words.length;
     }
 }

@@ -1,3 +1,0 @@
-abc def ghi
-
-unique file, high tf-idf

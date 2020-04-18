@@ -1,8 +1,10 @@
 package app.classify;
 
+import app.parametrize.IParametrizer;
+
 public interface IClassifier
 {
-    void classify();
+    String classify(double[] vector);
 
-    void train();
+    void train(IParametrizer parametrizer);
 }

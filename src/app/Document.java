@@ -1,6 +1,6 @@
 package app;
 
-import java.util.ArrayList;
+import java.util.List;
 
 public class Document
 {
@@ -8,5 +8,5 @@ public class Document
     public String[] documentWords;
 
     /** Classes */
-    public String[] classes;
+    public List<String> classes;
 }
