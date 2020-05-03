@@ -5,19 +5,30 @@ import app.LibraryMethods;
 import app.Logger;
 import app.Settings;
 import app.parametrize.IParametrizer;
+
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class NaiveBayes implements IClassifier
 {
     /** classification classes */
     private String[] classes;
 
-    /** probabilities of classes - number of class occurences / number of all class occurencies (meaning potentially higher than document number) */
+    /** probabilities of classes - number of class occurrences / number of all class occurrences (meaning potentially higher than document number) */
     private double[] classProbabilities;
 
     /** probabilities of words given classes */
     private double[][] wordClassProbabilities;
 
+    public static String identifier = "nb";
+
+    /**
+     * Calculates probabilities for each class
+     * Uses log probability to avoid underflow
+     * @param vector vector
+     * @return class
+     */
     @Override
     public String classify(double[] vector)
     {
@@ -29,7 +40,12 @@ public class NaiveBayes implements IClassifier
 
             for (int j = 0; j < vector.length; j++)
             {
-                scores[i] += vector[j] * Math.log(wordClassProbabilities[i][j]);
+                try {
+                    scores[i] += vector[j] * Math.log(wordClassProbabilities[i][j]);
+                }
+                catch (IndexOutOfBoundsException e) {
+                    int a = 0;
+                }
             }
         }
 
@@ -55,7 +71,6 @@ public class NaiveBayes implements IClassifier
         Logger.info("Loading documents");
         Document[] trainDocuments = LibraryMethods.loadDocuments(Settings.trainingSetPath);
         classProbabilities = getClassProbabilities(trainDocuments);
-
         double[][] documentVectors = new double[trainDocuments.length][parametrizer.getVectorLength()];
 
         Logger.info("Parametrizing documents");
@@ -69,52 +84,59 @@ public class NaiveBayes implements IClassifier
     }
 
     /**
-     * Calcultes probabilities of words occurring in a class
+     * Calculates probabilities of words occurring in a class
      * @param documentVectors parametrized documents
      * @param trainDocuments non-parametrized documents with class information
      */
     private void calculateWordClassProbabilities(double[][] documentVectors, Document[] trainDocuments)
     {
-        // We will count the numbers of tokens in all docs in a class
-        int[][] classTokenTotalCounts = new int[classes.length][documentVectors[0].length];
+        ArrayList<double[]>[] documentsSeparatedByClass = new ArrayList[classes.length];
+        for (int i = 0; i < classes.length; i++)
+            documentsSeparatedByClass[i] = new ArrayList<>();
 
-        wordClassProbabilities = new double[classes.length][documentVectors[0].length];
-
-        // for each class
-        for (int i = 0; i < classTokenTotalCounts.length; i++)
+        // Separate documents by class
+        for (int i = 0; i < classes.length; i++)
         {
-            // for each document
             for (int j = 0; j < trainDocuments.length; j++)
             {
-                // If the document has this class
                 if (trainDocuments[j].classes.contains(classes[i]))
                 {
-                    // We add the counts to our totals
-                    for (int k = 0; k < documentVectors[0].length; k++)
-                    {
-                        classTokenTotalCounts[i][k] += documentVectors[j][k];
-                    }
+                    documentsSeparatedByClass[i].add(documentVectors[j]);
                 }
             }
         }
 
-        // A helper array containing total word counts for each class so that we don't have to count it each time
-        double[] classesCountsTotal = new double[classes.length];
-
-        for (int i = 0; i < classesCountsTotal.length; i++)
+        // For each class, calculate total counts of each token across all documents belonging to that class
+        double[][] classTokenTotalCounts = new double[classes.length][documentVectors[0].length];
+        for (int i = 0; i < classes.length; i++)
         {
-            for (int j = 0; j < documentVectors[0].length; j++)
+            for (int j = 0; j < documentsSeparatedByClass[i].size(); j++)
             {
-                 classesCountsTotal[i] += documentVectors[i][j];
+                for (int k = 0; k < documentVectors[0].length; k++)
+                {
+                    double[] vector = documentsSeparatedByClass[i].get(j);
+                    classTokenTotalCounts[i][k] += vector[k];
+                }
             }
         }
 
+        // For each class, count totals of all vector parts
+        double[] classTotals = new double[classes.length];
         for (int i = 0; i < classes.length; i++)
         {
             for (int j = 0; j < documentVectors[0].length; j++)
             {
-                // again the +1 for smoothing
-                wordClassProbabilities[i][j] = (classTokenTotalCounts[i][j] + 1) / (classesCountsTotal[i] + documentVectors[0].length);
+                classTotals[i] += classTokenTotalCounts[i][j];
+            }
+        }
+
+        // Calculate probabilities of vector parts for each class
+        wordClassProbabilities = new double[classes.length][documentVectors[0].length];
+        for (int i = 0; i < classes.length; i++)
+        {
+            for (int j = 0; j < documentVectors[0].length; j++)
+            {
+                wordClassProbabilities[i][j] = (classTokenTotalCounts[i][j] + 1) / (classTotals[i] + documentVectors[0].length);
             }
         }
     }
@@ -126,8 +148,8 @@ public class NaiveBayes implements IClassifier
      */
     private double[] getClassProbabilities(Document[] docs)
     {
-        // Number of classes specified within documents (pot. higher than number of documents)
-        int[] classOccurences = new int[classes.length];
+        // Number of classes specified within documents (pot. higher than number of documents - if a document has more than one class)
+        int[] classOccurrences = new int[classes.length];
         double[] classProbabilities = new double[classes.length];
         int total = 0;
 
@@ -139,15 +161,15 @@ public class NaiveBayes implements IClassifier
 
                 if (index >= 0)
                 {
-                    classOccurences[index] += 1;
+                    classOccurrences[index] += 1;
                     total++;
                 }
             }
         }
 
-        for (int i = 0; i < classOccurences.length; i++)
+        for (int i = 0; i < classOccurrences.length; i++)
         {
-            classProbabilities[i] = (double)classOccurences[i] / total;
+            classProbabilities[i] = (double)classOccurrences[i] / total;
         }
 
         return classProbabilities;
@@ -160,4 +182,73 @@ public class NaiveBayes implements IClassifier
     {
         classes = LibraryMethods.loadClassesSorted();
     }
+
+    /**
+     * Exports the classifier as a list of lines
+     * @return lines to write into file
+     */
+    @Override
+    public List<String> export()
+    {
+        List<String> lines = new ArrayList<>();
+        lines.add("**_classifier:" + identifier);
+
+        lines.add("**_classes:");
+        StringBuilder cs = new StringBuilder();
+        for (String c : classes)
+            cs.append(c).append(";");
+
+        lines.add(cs.toString());
+
+
+        lines.add("**_class_probabilities:");
+        cs = new StringBuilder();
+        for (double p : classProbabilities)
+            cs.append(p).append(";");
+        lines.add(cs.toString());
+
+        lines.add("**_token_probabilities");
+        for (double[] p : wordClassProbabilities)
+        {
+            cs = new StringBuilder();
+            for (int i = 0; i < p.length; i++)
+            {
+                cs.append(p[i]).append(";");
+            }
+            lines.add(cs.toString());
+        }
+
+        return lines;
+    }
+
+    @Override
+    public void load(List<String> lines)
+    {
+        // Parse classes
+        String s = lines.get(2);
+        classes = s.split(";");
+
+        // Parse class probabilities
+        s = lines.get(4);
+        String[] temp = s.split(";");
+        classProbabilities = new double[classes.length];
+        for (int i = 0; i < temp.length; i++)
+        {
+            classProbabilities[i] = Double.parseDouble(temp[i]);
+        }
+
+        // Parse word-class probabilities
+        wordClassProbabilities = new double[classes.length][];
+        for (int i = 6; i < lines.size(); i++)
+        {
+            s = lines.get(i);
+            String[] ps = s.split(";");
+            wordClassProbabilities[i - 6] = new double[ps.length];
+            for (int j = 0; j < ps.length; j++)
+            {
+                wordClassProbabilities[i - 6][j] = Double.parseDouble(ps[j]);
+            }
+        }
+    }
 }
+

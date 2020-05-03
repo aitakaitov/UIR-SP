@@ -16,7 +16,7 @@ public class Application
         else if (Settings.mode == Mode.LOAD)
         {
             model = new Model();
-            model.loadModel();
+            model = Model.loadModel();
         }
     }
 }

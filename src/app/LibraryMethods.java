@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 public class LibraryMethods
@@ -69,6 +70,19 @@ public class LibraryMethods
     }
 
     /**
+     * Parses text into tokens
+     * @param s text
+     * @return parsed text
+     */
+    public static Document parseString(String s)
+    {
+        Document d = new Document();
+        d.documentWords = splitText(s);
+
+        return d;
+    }
+
+    /**
      * Splits document text into words and converts them into lowercase
      * @param text
      * @return lowercase words
@@ -87,6 +101,7 @@ public class LibraryMethods
 
     /**
      * Loads and parses all documents in a directory
+     * Documents without class labels are ignored
      * @param dirPath path to directory
      * @return Documents
      */
@@ -94,13 +109,19 @@ public class LibraryMethods
     {
         File dir = new File(dirPath);
         File[] files = dir.listFiles();
-        Document[] docs = new Document[files.length];
+        ArrayList<Document> docs = new ArrayList<>();
 
         for (int i = 0; i < files.length; i++)
         {
-            docs[i] = parseDocument(files[i]);
+            Document d = parseDocument(files[i]);
+
+            if (d.classes.size() == 1 && d.classes.get(0).equals(""))
+                continue;
+
+            docs.add(d);
         }
 
-        return docs;
+        Document[] arr = new Document[docs.size()];
+        return docs.toArray(arr);
     }
 }

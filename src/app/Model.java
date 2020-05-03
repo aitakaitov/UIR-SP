@@ -1,11 +1,15 @@
 package app;
 
 import app.classify.IClassifier;
+import app.classify.KNearestNeighbours;
 import app.classify.NaiveBayes;
-import app.parametrize.BagOfWordsTFIDF;
 import app.parametrize.IParametrizer;
+import app.parametrize.NGrams;
 
+import java.io.*;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class Model
 {
@@ -22,9 +26,16 @@ public class Model
         this.classifier = classifier;
     }
 
-    public void classifyText(String text) {}
-
-    public void loadModel() {}
+    /**
+     * Parametrizes and classifies the text
+     * Returns the estimated class
+     * @param text
+     * @return class
+     */
+    public String classifyText(String text)
+    {
+        return classifier.classify(parametrizer.parametrize(LibraryMethods.parseString(text)));
+    }
 
     /**
      * Returns a Model with parametrizer and classifier according to Settings arguments
@@ -38,7 +49,15 @@ public class Model
 
         if (Settings.parametrizerArgument.equals("bagofwords"))
         {
-            parametrizer = new BagOfWordsTFIDF();
+            parametrizer = new NGrams(false, 1);
+        }
+        else if (Settings.parametrizerArgument.equals("tfidf"))
+        {
+            parametrizer = new NGrams(true, 1);
+        }
+        else if (Settings.parametrizerArgument.equals("ngrams"))
+        {
+            parametrizer = new NGrams(false, 2);
         }
         else
             {
@@ -50,7 +69,10 @@ public class Model
         {
             classifier = new NaiveBayes();
         }
-        else
+        else if (Settings.classifierArgument.equals("knn"))
+        {
+            classifier = new KNearestNeighbours(5);
+        }
             {
                 System.out.println("Invalid classifier argument, program will now exit.");
             }
@@ -63,6 +85,99 @@ public class Model
      */
     public void saveModel()
     {
+        Logger.info("Exporting model");
+        Logger.info("Exporting parametrizer");
+        List<String> paramExport = parametrizer.export();
+        Logger.info("Exporting classifier");
+        List<String> classifierExport = classifier.export();
+        Logger.info("Writing into file");
+        try
+        {
+            File f = new File(Settings.modelPath);
+            if (!f.exists())
+                f.createNewFile();
+
+            BufferedWriter bw = new BufferedWriter(new FileWriter(f));
+
+            for (String s : paramExport)
+            {
+                bw.write(s);
+                bw.newLine();
+            }
+            for (String s : classifierExport)
+            {
+                bw.write(s);
+                bw.newLine();
+            }
+
+            bw.flush();
+            bw.close();
+        }
+        catch (IOException e)
+        {
+            Logger.error("Error writing into file, program will exit.");
+            System.exit(1);
+        }
+        Logger.info("Successfully exported the model into file " + Settings.modelPath);
+    }
+
+    public static Model loadModel()
+    {
+        Model m = new Model();
+        Logger.info("Loading model");
+        List<String> classifierLines = new ArrayList<>();
+        List<String> parametrizerLines = new ArrayList<>();
+        try
+        {
+            BufferedReader br = new BufferedReader(new FileReader(new File(Settings.modelPath)));
+            String s = br.readLine();
+            while (!s.contains("**_classifier:"))
+            {
+                parametrizerLines.add(s);
+                s = br.readLine();
+            }
+            while (s != null)
+            {
+                classifierLines.add(s);
+                s = br.readLine();
+            }
+        }
+        catch (IOException e)
+        {
+            Logger.error("Error while loading the model, program will exit.");
+            System.exit(0);
+        }
+
+        IClassifier classifier = null;
+        IParametrizer parametrizer = null;
+
+        Logger.info("Loading classifier");
+        String cLine = classifierLines.get(0);
+        if (cLine.equals("**_classifier:" + NaiveBayes.identifier))
+        {
+            classifier = new NaiveBayes();
+            classifier.load(classifierLines);
+        }
+        else if (cLine.equals("**_classifier:" + KNearestNeighbours.identifier))
+        {
+            classifier = new KNearestNeighbours();
+            classifier.load(classifierLines);
+        }
+
+        Logger.info("Loading parametrizer");
+        String pLine = parametrizerLines.get(0);
+        if (pLine.equals("**_parametrizer:" + NGrams.identifier))
+        {
+            parametrizer = new NGrams();
+            parametrizer.load(parametrizerLines);
+        }
+
+        m.parametrizer = parametrizer;
+        m.classifier = classifier;
+
+        Logger.info("Model loaded");
+
+        return m;
     }
 
     /**
@@ -78,31 +193,6 @@ public class Model
         {
             vectors[i] = parametrizer.parametrize(testDocuments[i]);
             results[i] = classifier.classify(parametrizer.parametrize(testDocuments[i]));
-        }
-
-        for (int i = 0; i < vectors.length; i++)
-        {
-            double[] vector1 = vectors[i];
-            for (int j = 0; j < vectors.length; j++)
-            {
-                double[] vector2 = vectors[j];
-
-                if (i == j)
-                    continue;
-
-                boolean diff = false;
-
-                for (int k = 0; k < vectors[0].length; k++)
-                {
-                    if (vector1[k] != vector2[k])
-                    {
-                        diff = true;
-                    }
-                }
-
-                if (!diff)
-                    System.out.println(i + ", " + j + "not different");
-            }
         }
 
         int rightCount = 0;
